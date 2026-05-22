@@ -21,7 +21,7 @@ Python이 웹캠 영상에서 손을 추적하고, Unity가 그 데이터를 받
 | 미션 | 동작 | 판정 |
 |------|------|------|
 | 칼질 (Cutting) | 식칼을 잡고 위아래로 빠르게 움직임 | Y 속도 방향 전환 횟수 |
-| 휘핑 (Whisking) | 휘핑기를 잡고 원형으로 돌림 | 360° 회전 누적 횟수 |
+| 젓기 (Paddling) | 밥주걱을 잡고 원형으로 돌림 | 360° 회전 누적 횟수 |
 
 ---
 
@@ -44,7 +44,7 @@ Python이 웹캠 영상에서 손을 추적하고, Unity가 그 데이터를 받
   ├─ UDPReceiver.cs      ← JSON 수신·파싱
   ├─ ToolController.cs   ← 도구 이동 / pinch로 잡기
   ├─ CuttingGameManager  ← 칼질 미션 판정
-  ├─ WhiskingGameManager ← 휘핑 미션 판정
+  ├─ WhiskingGameManager ← 젓기 미션 판정 (밥주걱)
   ├─ ScoreManager        ← 점수·콤보 계산
   └─ RankingManager      ← rankings.json 저장
 ```
@@ -111,7 +111,7 @@ Main Scene
 │     ├── ScoreManager.cs
 │     └── RankingManager.cs
 ├── [Cube] Knife          ← ToolController (type: Knife)
-├── [Cylinder] Whisk      ← ToolController (type: Whisk)
+├── [Cube] Paddle         ← ToolController (type: Paddle)
 ├── [Cube] Ingredient     ← 재료 오브젝트
 ├── [Sphere] Bowl         ← 그릇 오브젝트
 └── [Canvas] UI

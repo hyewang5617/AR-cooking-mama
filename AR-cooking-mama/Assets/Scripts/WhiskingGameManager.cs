@@ -1,16 +1,16 @@
 /*
- * WhiskingGameManager.cs
+ * WhiskingGameManager.cs  (밥주걱 버전 - Paddle)
  * ─────────────────────────────────────────────────────────
- * 역할: 휘핑 미션을 관리한다.
+ * 역할: 밥주걱(Paddle) 미션을 관리한다.
  *
  * 판정 로직:
- *   - 휘핑기(ToolType.Whisk)가 잡혀있는 동안 손 궤적의 각도 변화를 추적
+ *   - 밥주걱(ToolType.Paddle)이 잡혀있는 동안 손 궤적의 각도 변화를 추적
  *   - 360도 누적 회전마다 게이지 +1
  *   - 게이지가 목표 이상이면 성공
  *
  * 씬 설정:
  *   - 빈 GameObject에 부착
- *   - whisk 필드에 휘핑기 오브젝트(ToolController 부착) 연결
+ *   - paddle 필드에 밥주걱 오브젝트(ToolController 부착) 연결
  *   - bowl 필드에 그릇 오브젝트 연결 (선택)
  */
 
@@ -20,7 +20,7 @@ using UnityEngine.Events;
 public class WhiskingGameManager : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private ToolController whisk;
+    [SerializeField] private ToolController paddle;
     [SerializeField] private GameObject     bowl;
 
     [Header("Game Settings")]
@@ -36,9 +36,9 @@ public class WhiskingGameManager : MonoBehaviour
     public float TimeLeft       { get; private set; }
     public bool  IsRunning      { get; private set; }
 
-    private float  _totalAngle  = 0f;
-    private float  _prevAngle   = float.NaN;
-    private Vector2 _center;    // 그릇(또는 화면) 중심
+    private float   _totalAngle = 0f;
+    private float   _prevAngle  = float.NaN;
+    private Vector2 _center;
 
     public void StartGame()
     {
@@ -54,7 +54,7 @@ public class WhiskingGameManager : MonoBehaviour
             ? new Vector2(bowl.transform.position.x, bowl.transform.position.y)
             : Vector2.zero;
 
-        Debug.Log("[WhiskingGame] Started");
+        Debug.Log("[PaddlingGame] Started");
     }
 
     void Update()
@@ -65,7 +65,7 @@ public class WhiskingGameManager : MonoBehaviour
         if (TimeLeft <= 0f) { _Fail(); return; }
 
         HandData hand = UDPReceiver.Current;
-        if (!hand.detected || !whisk || !whisk.IsHeld)
+        if (!hand.detected || !paddle || !paddle.IsHeld)
         {
             _prevAngle = float.NaN;
             return;
@@ -74,7 +74,6 @@ public class WhiskingGameManager : MonoBehaviour
         Vector2 handPos = new Vector2(hand.x, hand.y);
         Vector2 dir     = handPos - _center;
 
-        // 중심에 너무 가까우면 무시
         if (dir.magnitude < 0.3f) return;
 
         float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
@@ -88,7 +87,7 @@ public class WhiskingGameManager : MonoBehaviour
             if (newRot > RotationCount)
             {
                 RotationCount = newRot;
-                Debug.Log($"[WhiskingGame] Rotation! ({RotationCount}/{targetRotations})");
+                Debug.Log($"[PaddlingGame] Rotation! ({RotationCount}/{targetRotations})");
                 if (RotationCount >= targetRotations) { _Success(); return; }
             }
 
@@ -104,13 +103,13 @@ public class WhiskingGameManager : MonoBehaviour
         ScoreManager.Instance?.AddScore(
             ScoreManager.CalcScore(RotationCount, targetRotations, TimeLeft, gameDuration));
         onSuccess?.Invoke();
-        Debug.Log("[WhiskingGame] SUCCESS");
+        Debug.Log("[PaddlingGame] SUCCESS");
     }
 
     private void _Fail()
     {
         IsRunning = false;
         onFail?.Invoke();
-        Debug.Log("[WhiskingGame] FAIL");
+        Debug.Log("[PaddlingGame] FAIL");
     }
 }

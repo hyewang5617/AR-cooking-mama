@@ -1,18 +1,18 @@
 /*
  * ToolController.cs
  * ─────────────────────────────────────────────────────────
- * 역할: 손 데이터에 따라 3D 조리도구(식칼 / 휘핑기)를 이동시키고
+ * 역할: 손 데이터에 따라 3D 조리도구(식칼 / 밥주걱)를 이동시키고
  *       pinch gesture로 도구를 잡거나 놓는다.
  *
  * 씬 설정:
  *   - 각 조리도구 GameObject에 이 컴포넌트를 붙인다.
- *   - toolType으로 Knife / Whisk 중 선택.
+ *   - toolType으로 Knife / Paddle 중 선택.
  *   - 도구가 "잡힌 상태"일 때만 손 좌표를 따라간다.
  */
 
 using UnityEngine;
 
-public enum ToolType { Knife, Whisk }
+public enum ToolType { Knife, Paddle }
 
 public class ToolController : MonoBehaviour
 {
