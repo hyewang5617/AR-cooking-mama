@@ -1,4 +1,4 @@
-# Webcam-Cooking-Mama
+# AR-cooking-mama
 웹캠으로 쿠킹마마를 플레이해보자!
 
 ---
