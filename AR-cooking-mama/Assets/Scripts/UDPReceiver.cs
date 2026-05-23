@@ -23,6 +23,7 @@ public class HandData
     public bool   detected;
     public float  x;           // Unity 월드 X 좌표
     public float  y;           // Unity 월드 Y 좌표
+    public float  z;           // Unity 월드 Z 좌표 (손 깊이)
     public float  vx;          // X 속도 (Unity 단위/초)
     public float  vy;          // Y 속도
     public bool   pinched;     // pinch 여부

@@ -29,6 +29,7 @@ hand_landmarker.task
 
 # ── 게임 데이터 ─────────────────────────────────────────
 rankings.json
+camera_params.json
 
 # ── IDE ────────────────────────────────────────────────
 .vscode/

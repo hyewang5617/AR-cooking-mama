@@ -51,7 +51,7 @@ public class ToolController : MonoBehaviour
             return;
         }
 
-        Vector3 handPos = new Vector3(hand.x, hand.y, 0f);
+        Vector3 handPos = new Vector3(hand.x, hand.y, hand.z);
 
         // pinch 여부만으로 잡기/놓기 결정 (거리 제한 없음)
         IsHeld = hand.pinched;
