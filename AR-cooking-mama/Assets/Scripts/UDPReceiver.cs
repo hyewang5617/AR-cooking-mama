@@ -35,8 +35,8 @@ public class UDPReceiver : MonoBehaviour
     [Header("Network")]
     [SerializeField] private int port = 5052;
 
-    // 다른 스크립트에서 읽어가는 최신 데이터
-    public static HandData Current { get; private set; } = new HandData();
+    public static HandData Current        { get; private set; } = new HandData();
+    public static float    LastUpdateTime { get; private set; } = 0f;
 
     private UdpClient  _client;
     private Thread     _thread;
@@ -60,8 +60,9 @@ public class UDPReceiver : MonoBehaviour
         {
             if (_hasNew)
             {
-                Current  = _latest;
-                _hasNew  = false;
+                Current        = _latest;
+                LastUpdateTime = Time.time;
+                _hasNew        = false;
             }
         }
     }

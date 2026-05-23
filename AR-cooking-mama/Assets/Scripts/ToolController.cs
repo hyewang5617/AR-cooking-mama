@@ -19,24 +19,15 @@ public class ToolController : MonoBehaviour
     [Header("Tool Settings")]
     [SerializeField] private ToolType toolType = ToolType.Knife;
 
-    [Tooltip("도구가 목표 위치까지 도달하는 시간(초). 낮을수록 빠름")]
-    [SerializeField] private float smoothTime = 0.08f;
-
-    [Tooltip("도구 최대 이동 속도 (Unity 단위/초)")]
-    [SerializeField] private float maxSpeed = 30f;
-
-    public bool IsHeld  { get; private set; }
+    public bool IsHeld { get; private set; }
     public ToolType Type => toolType;
 
-    private Vector3  _targetPos;
-    private Vector3  _velocity = Vector3.zero;   // SmoothDamp 내부 속도
     private Renderer _renderer;
     private Color    _baseColor;
 
     void Start()
     {
-        _targetPos = transform.position;
-        _renderer  = GetComponent<Renderer>();
+        _renderer = GetComponent<Renderer>();
         if (_renderer) _baseColor = _renderer.material.color;
     }
 
@@ -44,23 +35,22 @@ public class ToolController : MonoBehaviour
     {
         HandData hand = UDPReceiver.Current;
 
-        if (!hand.detected)
+        if (hand.detected)
+        {
+            IsHeld = hand.pinched;
+            if (IsHeld)
+            {
+                // 패킷 도착 위치 + 그 이후 경과 시간만큼 velocity로 예측
+                float dt       = Time.time - UDPReceiver.LastUpdateTime;
+                Vector3 base_  = new Vector3(hand.x, hand.y, hand.z);
+                Vector3 pred   = new Vector3(hand.vx * dt, hand.vy * dt, 0f);
+                transform.position = base_ + pred;
+            }
+        }
+        else
         {
             IsHeld = false;
-            _SetHighlight(false);
-            return;
         }
-
-        Vector3 handPos = new Vector3(hand.x, hand.y, hand.z);
-
-        // pinch 여부만으로 잡기/놓기 결정 (거리 제한 없음)
-        IsHeld = hand.pinched;
-
-        if (IsHeld)
-            _targetPos = handPos;
-
-        transform.position = Vector3.SmoothDamp(
-            transform.position, _targetPos, ref _velocity, smoothTime, maxSpeed);
 
         _SetHighlight(IsHeld);
     }

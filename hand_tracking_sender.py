@@ -169,7 +169,6 @@ def main():
             pinched, pinch_dist = calc_pinch(lms)
             px, py = calc_palm_center(lms)
             ux, uy = to_unity_xy(px, py, PROC_W, PROC_H)
-            ux, uy = smoother.update(ux, uy)
             vx, vy = velocity.update(ux, uy)
             uz     = calc_depth_z(lms, PROC_W, PROC_H)
 
