@@ -6,6 +6,7 @@ import time
 import threading
 import urllib.request
 import os
+import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision
@@ -90,26 +91,39 @@ def draw_hand(frame, landmarks, pinched):
         cv2.circle(frame, pt, 4, (0, 230, 120), -1)
     cv2.line(frame, pts[4], pts[8], (0, 255, 255), 3)
 
-# ── 속도 계산 ────────────────────────────────────────────
+# ── Kalman 속도 추정 ─────────────────────────────────────
+# 위치는 raw MediaPipe 그대로 (lag 없음),
+# velocity만 Kalman으로 추정해서 _send_loop의 중간 예측 정확도를 높임
 class VelocityTracker:
     def __init__(self):
-        self._prev = None
-        self._t    = None
+        self.kf = cv2.KalmanFilter(4, 2)
+        self.kf.transitionMatrix    = np.eye(4, dtype=np.float32)
+        self.kf.measurementMatrix   = np.array([[1,0,0,0],[0,1,0,0]], dtype=np.float32)
+        self.kf.processNoiseCov     = np.diag([1e-4, 1e-4, 1e-2, 1e-2]).astype(np.float32)
+        self.kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 5e-2
+        self.kf.errorCovPost        = np.eye(4, dtype=np.float32)
+        self._ready  = False
+        self._prev_t = None
 
     def update(self, x, y):
         now = time.time()
-        vx = vy = 0.0
-        if self._prev and self._t:
-            dt = now - self._t
-            if dt > 0:
-                vx = (x - self._prev[0]) / dt
-                vy = (y - self._prev[1]) / dt
-        self._prev, self._t = (x, y), now
-        return round(vx, 4), round(vy, 4)
+        if not self._ready:
+            self.kf.statePost = np.array([[x],[y],[0.],[0.]], dtype=np.float32)
+            self._ready  = True
+            self._prev_t = now
+            return 0.0, 0.0
+
+        dt = max(now - self._prev_t, 1e-4)
+        self._prev_t = now
+        self.kf.transitionMatrix[0, 2] = dt
+        self.kf.transitionMatrix[1, 3] = dt
+        self.kf.predict()
+        c = self.kf.correct(np.array([[x],[y]], dtype=np.float32))
+        # velocity만 반환 (위치는 raw MediaPipe 사용)
+        return round(float(c[2, 0]), 4), round(float(c[3, 0]), 4)
 
     def reset(self):
-        self._prev = None
-        self._t    = None
+        self._ready = False
 
 # ── LIVE_STREAM 콜백 결과 공유 (스레드 안전) ─────────────
 class SharedResult:
@@ -156,8 +170,9 @@ class HandState:
     def payload(self):
         with self._lock:
             if not self.detected:
-                return {"detected": False}
-            dt = time.time() - self._t
+                return {"detected": False}, 0.0
+            dt    = time.time() - self._t
+            speed = math.sqrt(self.vx ** 2 + self.vy ** 2)
             return {
                 "detected": True,
                 "x":  round(self.x + self.vx * dt, 4),
@@ -166,18 +181,29 @@ class HandState:
                 "vx": self.vx, "vy": self.vy,
                 "pinched":    self.pinched,
                 "pinch_dist": self.pinch_dist,
-            }
+            }, speed
 
 def _send_loop(sock, hand_state, stop_evt):
-    """60fps로 Unity에 UDP 전송. MediaPipe 갱신 사이를 velocity로 예측."""
-    interval = 1.0 / 60
-    next_t   = time.time()
+    """속도 기반 가변 전송률: 정지~60fps, 빠른 움직임~120fps."""
+    BASE_FPS = 60
+    MAX_FPS  = 120
+    # speed 1단위 증가마다 fps 8 증가, 최대 120fps
+    # ex) speed=0 → 60fps, speed=7.5 → 120fps
+    SPEED_SCALE = 8.0
+
+    next_t = time.time()
     while not stop_evt.is_set():
-        sock.sendto(json.dumps(hand_state.payload()).encode(), (UDP_IP, UDP_PORT))
-        next_t += interval
-        wait = next_t - time.time()
+        data, speed = hand_state.payload()
+        sock.sendto(json.dumps(data).encode(), (UDP_IP, UDP_PORT))
+
+        fps      = min(MAX_FPS, BASE_FPS + speed * SPEED_SCALE)
+        interval = 1.0 / fps
+        next_t  += interval
+        wait     = next_t - time.time()
         if wait > 0:
             time.sleep(wait)
+        else:
+            next_t = time.time()  # 뒤처지면 리셋
 
 def main():
     ensure_model()
