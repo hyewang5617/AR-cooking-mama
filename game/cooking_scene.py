@@ -362,6 +362,8 @@ class CookingScene(BaseMiniGame):
                          (int(50*a), int(180*a), 255),
                          max(1, int(a * 4)), cv2.LINE_AA)
 
+        self._draw_demo_hand(frame)
+
         if self._flash > 0:
             _shadow_text(frame, self._flash_lbl, w // 2, h // 3,
                          2.4, self._flash_col, 5, center=True)
@@ -438,6 +440,60 @@ class CookingScene(BaseMiniGame):
         if self._phase == 'grab_pan':
             _grab_ring(frame, self._pan_pos)
 
+    def _draw_demo_hand(self, frame):
+        """Animated guide hand showing the required motion for the current phase."""
+        t = time.time()
+        p = self._phase
+
+        if p == 'grab_knife':
+            # Fist sliding in toward knife from the left
+            off = int(60 * (math.sin(t * 1.8) + 1) / 2)
+            _demo_fist(frame, self._knife_pos[0] - 110 + off,
+                       self._knife_pos[1] - 20)
+
+        elif p == 'chopping':
+            # Fist bouncing up and down — shown to the LEFT of the cutting board
+            cy = int(S1_KNIFE_Y - 70 + 80 * math.sin(t * 3.5))
+            dx = S1_BOARD_X - 70
+            _demo_fist(frame, dx, cy)
+            # Direction arrow beside the demo hand
+            arrow_y = cy
+            going_down = math.cos(t * 3.5) < 0
+            ay2 = arrow_y + (35 if going_down else -35)
+            cv2.arrowedLine(frame, (dx + 55, arrow_y), (dx + 55, ay2),
+                            (0, 230, 180), 2, tipLength=0.45)
+
+        elif p == 'grab_spatula':
+            off = int(60 * (math.sin(t * 1.8) + 1) / 2)
+            _demo_fist(frame, self._spatula_pos[0] - 110 + off,
+                       self._spatula_pos[1] - 20)
+
+        elif p == 'stirring':
+            # Fist orbiting the pot counter-clockwise
+            r  = 115
+            cx = int(S2_POT_X + r * math.cos(-t * 2.0))
+            cy = int(S2_POT_Y + r * math.sin(-t * 2.0))
+            _demo_fist(frame, cx, cy)
+
+        elif p == 'grab_pan':
+            off = int(60 * (math.sin(t * 1.8) + 1) / 2)
+            _demo_fist(frame, self._pan_pos[0] - 110 + off,
+                       self._pan_pos[1] - 20)
+
+        elif p == 'flipping':
+            # Periodic upward flick — 0.5 s flick, 1.5 s rest
+            cycle = (t % 2.0) / 2.0          # 0→1 every 2 s
+            if cycle < 0.25:
+                off = -int(cycle / 0.25 * 130)
+            else:
+                off = -int((1.0 - (cycle - 0.25) / 0.75) * 130)
+            _demo_fist(frame, S3_PAN_X - 120, S3_PAN_Y + off)
+            if cycle < 0.25:
+                cv2.arrowedLine(frame,
+                                (S3_PAN_X - 120, S3_PAN_Y + off + 40),
+                                (S3_PAN_X - 120, S3_PAN_Y + off - 30),
+                                (80, 255, 160), 2, tipLength=0.45)
+
     def _draw_hint(self, frame, w, h):
         p = self._phase
         text, color = _PHASE_HINTS.get(p, ('', (255, 255, 255)))
@@ -479,6 +535,54 @@ def _panel(frame, x, y, w, h, color=(15, 15, 15), alpha=0.6):
     bg  = np.empty_like(roi)
     bg[:] = color
     frame[y1:y2, x1:x2] = cv2.addWeighted(bg, alpha, roi, 1 - alpha, 0)
+
+
+def _demo_fist(frame, cx, cy, size=42):
+    """Semi-transparent green fist drawn as a motion guide (not the player's hand)."""
+    fh, fw = frame.shape[:2]
+    pad = size + 12
+    x1, y1 = max(0, cx - pad), max(0, cy - pad)
+    x2, y2 = min(fw, cx + pad), min(fh, cy + pad)
+    if x2 <= x1 or y2 <= y1:
+        return
+
+    canvas = np.zeros((y2 - y1, x2 - x1, 4), dtype=np.uint8)
+    lx, ly = cx - x1, cy - y1
+
+    fill    = (120, 255, 120, 210)   # bright green, semi-transparent
+    outline = (30,  140, 30,  230)
+
+    # Fist body polygon
+    s = size
+    pts = np.array([
+        [lx - s,           ly + int(s * 0.45)],
+        [lx - int(s*0.92), ly - int(s * 0.05)],
+        [lx - int(s*0.75), ly - int(s * 0.50)],
+        [lx,               ly - int(s * 0.62)],
+        [lx + int(s*0.75), ly - int(s * 0.50)],
+        [lx + int(s*0.92), ly - int(s * 0.05)],
+        [lx + s,           ly + int(s * 0.45)],
+    ])
+    cv2.fillPoly(canvas, [pts], fill)
+    cv2.polylines(canvas, [pts], True, outline, 2)
+
+    # Knuckle bumps
+    for kxo, kyo in [(-0.48, -0.58), (-0.16, -0.63), (0.16, -0.63), (0.48, -0.58)]:
+        kx = lx + int(kxo * s)
+        ky = ly + int(kyo * s)
+        cv2.ellipse(canvas, (kx, ky), (int(s*0.18), int(s*0.15)), 0, 0, 360, fill,    -1)
+        cv2.ellipse(canvas, (kx, ky), (int(s*0.18), int(s*0.15)), 0, 0, 360, outline,  1)
+
+    # Thumb
+    cv2.ellipse(canvas,
+                (lx + int(s*0.95), ly + int(s*0.08)),
+                (int(s*0.22), int(s*0.36)), 20, 0, 360, fill, -1)
+
+    # Alpha-blend onto frame
+    roi = frame[y1:y2, x1:x2]
+    a   = canvas[:, :, 3:4].astype(np.float32) / 255.0
+    roi[:] = (canvas[:, :, :3].astype(np.float32) * a +
+              roi.astype(np.float32) * (1.0 - a)).astype(np.uint8)
 
 
 def _shadow_text(frame, text, x, y, scale, color, thickness=2, center=False):
