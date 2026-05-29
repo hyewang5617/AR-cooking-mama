@@ -3,17 +3,16 @@ import numpy as np
 import time
 
 from .hand_tracker import HandTracker
+from .hand_avatar   import draw_all as draw_avatars
 from .score_manager import ScoreManager
+from .cooking_scene import CookingScene
 from .ui import (draw_panel, draw_progress_bar, draw_text, draw_text_centered,
                  dim, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_DANGER,
                  COLOR_WHITE, COLOR_GREY, FONT)
-from .minigames.cutting import CuttingGame
-from .minigames.stirring import StirringGame
-from .minigames.flipping import FlippingGame
 
-SEQUENCE = [CuttingGame, StirringGame, FlippingGame]
-POINTS   = {'cut': 10, 'stir': 15, 'flip': 20}
-BONUS    = {CuttingGame: 80, StirringGame: 100, FlippingGame: 120}
+SEQUENCE = [CookingScene]
+POINTS   = {'cut': 10, 'stir': 15, 'flip': 20, 'grab': 0}
+BONUS    = {CookingScene: 300}
 
 
 def _grade(score):
@@ -26,28 +25,27 @@ def _grade(score):
 
 class GameManager:
     def __init__(self):
-        self.tracker  = HandTracker()
-        self.score    = ScoreManager()
-        self.state    = 'MENU'
-        self.game_idx = 0
-        self.game     = None
-        self.hand_pos = None
+        self.tracker     = HandTracker()
+        self.score       = ScoreManager()
+        self.state       = 'MENU'
+        self.game_idx    = 0
+        self.game        = None
+        self.hand_states = []   # List[HandState]
 
-        self._countdown_start = 0.0
-        self._result_start    = 0.0
+        self._countdown_start  = 0.0
+        self._result_start     = 0.0
         self._game_start_score = 0
-        self._last_success    = False
-        self._last_game_score = 0
-        self._player_name     = ''
+        self._last_success     = False
+        self._last_game_score  = 0
+        self._player_name      = ''
 
-    # ------------------------------------------------------------------ public
+    # ──────────────────────────────────────────────────────────── public ──────
 
     def update(self, frame):
-        results = self.tracker.process(frame)
-        self.hand_pos = self.tracker.get_position(results, frame.shape)
-        self.tracker.draw(frame, results)
+        self.tracker.process(frame)
+        self.hand_states = self.tracker.get_hand_states()
 
-        return {
+        output = {
             'MENU':       self._menu,
             'COUNTDOWN':  self._countdown,
             'PLAYING':    self._playing,
@@ -56,6 +54,10 @@ class GameManager:
             'GAME_OVER':  self._game_over,
             'RANKING':    self._ranking,
         }.get(self.state, lambda f: f)(frame)
+
+        # Draw white hand avatar(s) on top of everything
+        draw_avatars(output, self.hand_states)
+        return output
 
     def handle_key(self, key):
         if self.state == 'MENU' and key == ord(' '):
@@ -80,59 +82,62 @@ class GameManager:
             if key in (ord(' '), ord('r')):
                 self._reset()
 
-    # ----------------------------------------------------------------- private
+    # ─────────────────────────────────────────────────────────── private ─────
 
     def _begin_countdown(self):
         self._countdown_start = time.time()
         self.state = 'COUNTDOWN'
 
     def _launch_game(self):
-        cls = SEQUENCE[self.game_idx]
+        cls       = SEQUENCE[self.game_idx]
         self.game = cls()
         self.game.start()
         self._game_start_score = self.score.total_score
         self.state = 'PLAYING'
 
     def _reset(self):
-        self.state = 'MENU'
-        self.game_idx = 0
-        self.game = None
+        self.state        = 'MENU'
+        self.game_idx     = 0
+        self.game         = None
         self._player_name = ''
         self.score.reset()
 
-    # ------------------------------------------------------------------ states
+    # ─────────────────────────────────────────────────────────── states ──────
 
     def _menu(self, frame):
         h, w = frame.shape[:2]
         dim(frame, 0.5)
 
-        draw_text_centered(frame, 'Vision Cooking Challenge',
-                           h // 5, scale=1.7, color=COLOR_PRIMARY, thickness=3)
-        draw_text_centered(frame, 'Webcam Cooking Mama',
+        draw_text_centered(frame, 'AR  Cooking  Mama',
+                           h // 5, scale=1.8, color=COLOR_PRIMARY, thickness=3)
+        draw_text_centered(frame, 'Webcam + Hand Simulator',
                            h // 5 + 65, scale=0.9, color=COLOR_WHITE)
 
         lines = [
-            '1. Cutting Game   -  move hand LEFT <-> RIGHT',
-            '2. Stirring Game  -  move hand in CIRCLES',
-            '3. Flipping Game  -  move hand UP quickly',
+            'Make a FIST to grip tools',
+            'Step 1 — Grab the knife and chop UP-DOWN',
+            'Step 2 — Grab the spatula and stir in CIRCLES',
+            'Step 3 — Grab the pan and flick UP quickly',
         ]
         for i, line in enumerate(lines):
-            draw_text_centered(frame, line, h // 2 + i * 50, scale=0.75, color=COLOR_GREY)
+            draw_text_centered(frame, line, h // 2 + i * 46, scale=0.75, color=COLOR_GREY)
 
         if int(time.time() * 2) % 2 == 0:
-            draw_text_centered(frame, 'Press SPACE to start!',
+            draw_text_centered(frame, 'Press  SPACE  to start!',
                                h * 4 // 5, scale=1.2, color=COLOR_SUCCESS, thickness=2)
         return frame
 
     def _countdown(self, frame):
-        h, w = frame.shape[:2]
+        h, w    = frame.shape[:2]
         elapsed = time.time() - self._countdown_start
         dim(frame, 0.5)
 
         if self.game_idx < len(SEQUENCE):
             cls = SEQUENCE[self.game_idx]
-            draw_text_centered(frame, cls.name,        h // 4,      scale=1.8, color=COLOR_PRIMARY, thickness=3)
-            draw_text_centered(frame, cls.instruction, h // 4 + 70, scale=0.85, color=COLOR_WHITE)
+            draw_text_centered(frame, cls.name,        h // 4,
+                               scale=1.8, color=COLOR_PRIMARY, thickness=3)
+            draw_text_centered(frame, cls.instruction, h // 4 + 70,
+                               scale=0.85, color=COLOR_WHITE)
 
         remaining = 3 - int(elapsed)
         if remaining > 0:
@@ -146,19 +151,19 @@ class GameManager:
         return frame
 
     def _playing(self, frame):
-        events = self.game.update(self.hand_pos)
+        events = self.game.update(self.hand_states)
 
         for ev in events:
             self.score.add_score(POINTS.get(ev, 10))
 
-        frame = self.game.draw(frame, self.hand_pos)
+        frame = self.game.draw(frame, self.hand_states)
         self._hud(frame)
 
         if self.game.check_done():
-            self._last_success = self.game.succeeded
+            self._last_success    = self.game.succeeded
             if self._last_success:
-                base   = BONUS.get(type(self.game), 80)
-                time_b = int(self.game.time_remaining * 5)
+                base   = BONUS.get(type(self.game), 100)
+                time_b = int(self.game.time_remaining * 3)
                 self.score.add_bonus(base + time_b)
             self._last_game_score = self.score.total_score - self._game_start_score
             self.score.record_game(self.game.name, self._last_game_score)
@@ -168,15 +173,18 @@ class GameManager:
         return frame
 
     def _result(self, frame):
-        h, w = frame.shape[:2]
-        dim(frame, 0.55)
+        h, w    = frame.shape[:2]
         elapsed = time.time() - self._result_start
+        dim(frame, 0.55)
 
         label = 'SUCCESS!' if self._last_success else 'TIME UP!'
         color = COLOR_SUCCESS if self._last_success else COLOR_DANGER
-        draw_text_centered(frame, label,                       h // 3,      scale=3.0, color=color,        thickness=5)
-        draw_text_centered(frame, f'+{self._last_game_score}', h // 2,      scale=2.0, color=COLOR_PRIMARY, thickness=3)
-        draw_text_centered(frame, f'Total: {self.score.total_score}', h // 2 + 70, scale=1.1, color=COLOR_WHITE)
+        draw_text_centered(frame, label,                       h // 3,
+                           scale=3.0, color=color, thickness=5)
+        draw_text_centered(frame, f'+{self._last_game_score}', h // 2,
+                           scale=2.0, color=COLOR_PRIMARY, thickness=3)
+        draw_text_centered(frame, f'Total: {self.score.total_score}',
+                           h // 2 + 70, scale=1.1, color=COLOR_WHITE)
 
         if elapsed > 3.0:
             if self.game_idx >= len(SEQUENCE):
@@ -189,9 +197,12 @@ class GameManager:
         h, w = frame.shape[:2]
         dim(frame, 0.7)
 
-        draw_text_centered(frame, 'All Clear!',                   h // 5,      scale=2.5, color=COLOR_PRIMARY, thickness=4)
-        draw_text_centered(frame, f'Final Score: {self.score.total_score}', h // 3, scale=1.6, color=COLOR_WHITE, thickness=2)
-        draw_text_centered(frame, 'Enter your name:',             h // 2 - 20, scale=1.0, color=COLOR_GREY)
+        draw_text_centered(frame, 'All Clear!',
+                           h // 5,      scale=2.5, color=COLOR_PRIMARY, thickness=4)
+        draw_text_centered(frame, f'Final Score: {self.score.total_score}',
+                           h // 3,      scale=1.6, color=COLOR_WHITE, thickness=2)
+        draw_text_centered(frame, 'Enter your name:',
+                           h // 2 - 20, scale=1.0, color=COLOR_GREY)
 
         bw, bh = 420, 62
         bx, by = (w - bw) // 2, h // 2 + 20
@@ -200,15 +211,15 @@ class GameManager:
         cursor = '_' if int(time.time() * 2) % 2 == 0 else ' '
         cv2.putText(frame, self._player_name + cursor, (bx + 14, by + 44),
                     FONT, 1.3, COLOR_WHITE, 2)
-
-        draw_text_centered(frame, 'Press Enter to save', h * 4 // 5, scale=0.9, color=COLOR_GREY)
+        draw_text_centered(frame, 'Press Enter to save', h * 4 // 5,
+                           scale=0.9, color=COLOR_GREY)
         return frame
 
     def _game_over(self, frame):
         h, w = frame.shape[:2]
         dim(frame, 0.7)
 
-        draw_text_centered(frame, 'GAME OVER',
+        draw_text_centered(frame, 'GAME  OVER',
                            h // 6, scale=2.8, color=COLOR_PRIMARY, thickness=4)
         draw_text_centered(frame, f'Final Score: {self.score.total_score}',
                            h // 3, scale=1.8, color=COLOR_WHITE, thickness=3)
@@ -235,30 +246,40 @@ class GameManager:
             text  = f"  {i+1}.  {entry['name']:<12}  {entry['score']:>6}    {entry['date']}"
             draw_text_centered(frame, text, 145 + i * 58, scale=0.85, color=color)
 
-        draw_text_centered(frame, 'SPACE / R: Play again', h - 55, scale=1.0, color=COLOR_GREY)
+        draw_text_centered(frame, 'SPACE / R: Play again', h - 55,
+                           scale=1.0, color=COLOR_GREY)
         return frame
 
     def _hud(self, frame):
         h, w = frame.shape[:2]
         draw_panel(frame, 0, 0, w, 75)
 
-        draw_text(frame, self.game.name, (18, 50), scale=1.1, color=COLOR_PRIMARY, thickness=2)
+        draw_text(frame, self.game.name, (18, 50), scale=1.1,
+                  color=COLOR_PRIMARY, thickness=2)
 
-        t = self.game.time_remaining
-        t_str = f'TIME  {int(t) + 1:02d}'
-        sz = cv2.getTextSize(t_str, FONT, 1.1, 2)[0]
-        draw_text(frame, t_str, (w - sz[0] - 18, 50), scale=1.1,
-                  color=COLOR_DANGER if t < 5 else COLOR_WHITE, thickness=2)
+        # Timer — show 'GRAB!' before timer starts
+        if not self.game.timer_started:
+            t_str = 'GRAB the knife!'
+            t_col = (0, 200, 255)
+        else:
+            t = self.game.time_remaining
+            t_str = f'TIME  {int(t) + 1:02d}'
+            t_col = COLOR_DANGER if t < 15 else COLOR_WHITE
+        sz = cv2.getTextSize(t_str, FONT, 1.0, 2)[0]
+        draw_text(frame, t_str, (w - sz[0] - 18, 50), scale=1.0, color=t_col, thickness=2)
 
+        # Score
         s_str = f'Score: {self.score.total_score}'
-        ssz = cv2.getTextSize(s_str, FONT, 0.85, 2)[0]
+        ssz   = cv2.getTextSize(s_str, FONT, 0.85, 2)[0]
         draw_text(frame, s_str, ((w - ssz[0]) // 2, 50), scale=0.85, color=COLOR_WHITE)
 
-        # Time bar
+        # Progress bar (time)
         draw_progress_bar(frame, 15, h - 28, w - 30, 14, self.game.time_ratio,
-                          color=COLOR_DANGER if t < 5 else COLOR_SUCCESS)
+                          color=COLOR_DANGER if (self.game.timer_started and
+                                                  self.game.time_remaining < 15)
+                                            else COLOR_SUCCESS)
 
-        # Action progress
+        # Step text
         pt = self.game.progress_text
         if pt:
-            draw_text(frame, pt, (18, 110), scale=0.9, color=COLOR_WHITE)
+            draw_text(frame, pt, (18, 110), scale=0.85, color=COLOR_WHITE)

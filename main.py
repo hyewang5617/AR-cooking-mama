@@ -9,7 +9,14 @@ def open_camera():
         if cap.isOpened():
             ret, _ = cap.read()
             if ret:
-                print(f"Camera found at index {idx}")
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_FPS,          60)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE,   1)
+                print(f"Camera {idx}: "
+                      f"{cap.get(cv2.CAP_PROP_FRAME_WIDTH):.0f}x"
+                      f"{cap.get(cv2.CAP_PROP_FRAME_HEIGHT):.0f} "
+                      f"@ {cap.get(cv2.CAP_PROP_FPS):.0f}fps")
                 return cap
             cap.release()
     return None

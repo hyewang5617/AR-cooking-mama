@@ -2,16 +2,28 @@ import time
 
 
 class BaseMiniGame:
-    name = 'Mini Game'
+    name        = 'Mini Game'
     instruction = 'Follow the instructions!'
-    duration = 15.0
+    duration    = 15.0
+    grab_phase  = False  # if True, timer starts only after first grab (call _begin_timer)
 
     def __init__(self):
         self._start_time = None
-        self._complete = False
+        self._complete   = False
 
     def start(self):
-        self._start_time = time.time()
+        # If grab_phase, hold off on starting the timer until _begin_timer() is called
+        self._start_time = None if self.grab_phase else time.time()
+        self._complete   = False
+
+    def _begin_timer(self):
+        """Start the countdown — called once the player grabs their first tool."""
+        if self._start_time is None:
+            self._start_time = time.time()
+
+    @property
+    def timer_started(self):
+        return self._start_time is not None
 
     @property
     def time_remaining(self):
@@ -32,13 +44,16 @@ class BaseMiniGame:
         return ''
 
     def check_done(self):
-        if self._complete or self.time_remaining <= 0:
+        if self._complete:
+            return True
+        # Only time-out once the timer has actually started
+        if self._start_time is not None and self.time_remaining <= 0:
             self._complete = True
             return True
         return False
 
-    def update(self, hand_pos):
+    def update(self, hands):
         raise NotImplementedError
 
-    def draw(self, frame, hand_pos):
+    def draw(self, frame, hands):
         raise NotImplementedError
