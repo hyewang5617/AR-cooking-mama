@@ -31,7 +31,7 @@ def main():
     game = GameManager()
     WIN = 'AR Cooking Mama'
     cv2.namedWindow(WIN, cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty(WIN, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.resizeWindow(WIN, 1280, 720)
 
     while True:
         ret, frame = cap.read()

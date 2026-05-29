@@ -35,7 +35,16 @@ class ScoreManager:
         }
         self.rankings.append(entry)
         self.rankings.sort(key=lambda e: e['score'], reverse=True)
-        self.rankings = self.rankings[:10]
+
+        # Keep only the best score per name
+        seen = set()
+        deduped = []
+        for e in self.rankings:
+            if e['name'] not in seen:
+                seen.add(e['name'])
+                deduped.append(e)
+        self.rankings = deduped[:10]
+
         with open(RANKING_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.rankings, f, ensure_ascii=False, indent=2)
 

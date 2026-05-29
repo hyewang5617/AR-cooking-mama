@@ -1,4 +1,5 @@
 import cv2
+import math
 import numpy as np
 import time
 
@@ -23,6 +24,158 @@ def _grade(score):
     return 'D'
 
 
+# ── Tutorial illustration functions ──────────────────────────────────────────
+
+def _tut_draw_grip(frame, cx, cy):
+    """Open hand (left) → fist / green (right)."""
+    lx, rx = cx - 160, cx + 160
+    FONT_D = cv2.FONT_HERSHEY_DUPLEX
+
+    # Open hand — white
+    cv2.ellipse(frame, (lx, cy + 22), (30, 32), 0, 0, 360, (200, 200, 235), -1)
+    for fx, fw in [(-25, 11), (-9, 12), (9, 12), (25, 11)]:
+        cv2.ellipse(frame, (lx + fx, cy - 28), (fw // 2, 25),
+                    0, 0, 360, (200, 200, 235), -1)
+        cv2.ellipse(frame, (lx + fx, cy - 28), (fw // 2, 25),
+                    0, 0, 360, (110, 110, 150), 1)
+    cv2.ellipse(frame, (lx - 40, cy + 7), (9, 19), -35, 0, 360, (200, 200, 235), -1)
+    cv2.putText(frame, 'OPEN', (lx - 24, cy + 90), FONT_D, 0.65, (180, 180, 210), 1)
+
+    # Arrow
+    cv2.arrowedLine(frame, (lx + 58, cy), (rx - 58, cy),
+                    (220, 200, 50), 3, tipLength=0.3)
+
+    # Closed fist — green
+    pts = np.array([
+        [rx - 34, cy + 27], [rx - 40, cy + 4], [rx - 34, cy - 21],
+        [rx, cy - 29], [rx + 34, cy - 21], [rx + 40, cy + 4], [rx + 34, cy + 27]
+    ])
+    cv2.fillPoly(frame, [pts], (70, 210, 70))
+    cv2.polylines(frame, [pts], True, (30, 120, 30), 2)
+    for kx, ky in [(rx - 20, cy - 27), (rx - 2, cy - 29),
+                   (rx + 16, cy - 27), (rx + 34, cy - 21)]:
+        cv2.ellipse(frame, (kx, ky), (8, 7), 0, 0, 360, (70, 210, 70), -1)
+        cv2.ellipse(frame, (kx, ky), (8, 7), 0, 0, 360, (30, 120, 30), 1)
+    cv2.ellipse(frame, (rx + 44, cy + 7), (11, 17), 25, 0, 360, (70, 210, 70), -1)
+    cv2.putText(frame, 'GRIP = GREEN', (rx - 66, cy + 90), FONT_D, 0.65, (70, 210, 70), 1)
+
+
+def _tut_draw_grab(frame, cx, cy):
+    """Fist (left, green) approaching a glowing tool (right)."""
+    kx, ky = cx + 95, cy - 15
+    fx, fy = cx - 95, cy
+
+    # Tool icon (knife shape)
+    blade = np.array([[kx - 5, ky - 60], [kx + 5, ky - 60],
+                      [kx + 8, ky + 5],  [kx - 8, ky + 5]])
+    cv2.fillPoly(frame, [blade], (190, 190, 210))
+    cv2.polylines(frame, [blade], True, (130, 130, 160), 2)
+    cv2.rectangle(frame, (kx - 8, ky + 5), (kx + 8, ky + 28), (100, 70, 45), -1)
+    cv2.rectangle(frame, (kx - 8, ky + 5), (kx + 8, ky + 28), (70, 45, 25), 2)
+    # Pulsing glow ring
+    r = int(40 + 10 * math.sin(time.time() * 5))
+    cv2.circle(frame, (kx, ky - 15), r, (0, 200, 255), 2, cv2.LINE_AA)
+
+    # Fist icon (green, gripping)
+    fpts = np.array([
+        [fx - 28, fy + 22], [fx - 34, fy + 4], [fx - 28, fy - 18],
+        [fx, fy - 24],      [fx + 28, fy - 18], [fx + 34, fy + 4], [fx + 28, fy + 22]
+    ])
+    cv2.fillPoly(frame, [fpts], (70, 210, 70))
+    cv2.polylines(frame, [fpts], True, (30, 120, 30), 2)
+
+    # Arrow: fist → tool
+    cv2.arrowedLine(frame, (fx + 44, fy), (kx - 48, ky - 15),
+                    (255, 200, 50), 3, tipLength=0.3)
+
+
+def _tut_draw_chop(frame, cx, cy):
+    """Vertical double-arrow."""
+    cv2.arrowedLine(frame, (cx, cy + 70), (cx, cy - 80),
+                    (0, 240, 190), 7, tipLength=0.18)
+    cv2.arrowedLine(frame, (cx, cy - 80), (cx, cy + 70),
+                    (0, 200, 160), 4, tipLength=0.18)
+    cv2.putText(frame, 'UP  &  DOWN', (cx - 90, cy + 112),
+                cv2.FONT_HERSHEY_DUPLEX, 0.82, (0, 240, 190), 2)
+
+
+def _tut_draw_stir(frame, cx, cy):
+    """Clockwise circular arrow."""
+    r   = 72
+    pts = [(int(cx + r * math.cos(math.radians(a))),
+            int(cy + r * math.sin(math.radians(a)))) for a in range(362)]
+    for i in range(len(pts) - 1):
+        t = i / len(pts)
+        cv2.line(frame, pts[i], pts[i + 1],
+                 (int(20 + 60 * t), int(175 + 80 * t), int(100 + 80 * t)), 4, cv2.LINE_AA)
+    a0 = math.radians(345)
+    a1 = math.radians(361)
+    p0 = (int(cx + r * math.cos(a0)), int(cy + r * math.sin(a0)))
+    p1 = (int(cx + r * math.cos(a1)), int(cy + r * math.sin(a1)))
+    cv2.arrowedLine(frame, p0, p1, (80, 255, 180), 4, tipLength=0.55)
+    cv2.putText(frame, '3  full  rounds', (cx - 88, cy + 110),
+                cv2.FONT_HERSHEY_DUPLEX, 0.8, (80, 255, 180), 2)
+
+
+def _tut_draw_flip(frame, cx, cy):
+    """Triple upward arrows (emphasis)."""
+    for ox, alpha in [(-24, 0.35), (0, 1.0), (24, 0.35)]:
+        c = int(255 * alpha)
+        cv2.arrowedLine(frame, (cx + ox, cy + 76), (cx + ox, cy - 76),
+                        (60, c, int(120 * alpha)), max(2, int(7 * alpha)),
+                        tipLength=0.22)
+    cv2.putText(frame, 'FLICK  UP  FAST!', (cx - 112, cy + 112),
+                cv2.FONT_HERSHEY_DUPLEX, 0.82, (60, 255, 120), 2)
+
+
+# Each entry: (title, body_lines, illustration_fn_or_None)
+_TUT_PAGES = [
+    ('Your Virtual Hand',
+     ['Your real hand appears on screen as a WHITE hand.',
+      'Move your hand in front of the camera to try it!'],
+     None),
+
+    ('Make a FIST  =  Grip',
+     ['Curl all 4 fingers tightly into your palm.',
+      'The hand turns GREEN — that means you are gripping!'],
+     _tut_draw_grip),
+
+    ('Step 1  —  Grab the Knife',
+     ['Move your GREEN FIST close to the GLOWING knife.',
+      'Keep gripping — the knife will follow your hand!'],
+     _tut_draw_grab),
+
+    ('Step 1  —  Chop!',
+     ['Swing your hand sharply UP then DOWN.',
+      'Repeat this 5 times to chop the tomato!'],
+     _tut_draw_chop),
+
+    ('Step 2  —  Grab the Spatula',
+     ['After chopping, the spatula appears.',
+      'Grab it the same way — FIST near the spatula!'],
+     _tut_draw_grab),
+
+    ('Step 2  —  Stir!',
+     ['Move your hand in full CIRCLES around the pot.',
+      'Complete 3 full rotations to finish stirring!'],
+     _tut_draw_stir),
+
+    ('Step 3  —  Grab the Pan',
+     ['Find the pan on the RIGHT side of the screen.',
+      'Move your FIST close to it to grab it!'],
+     _tut_draw_grab),
+
+    ('Step 3  —  Flip!',
+     ['Flick your hand sharply UPWARD to flip the food.',
+      'Do this 2 times to finish cooking!'],
+     _tut_draw_flip),
+
+    ("You're Ready to Cook!",
+     ['Good luck!   Press SPACE to start!'],
+     None),
+]
+
+
 class GameManager:
     def __init__(self):
         self.tracker     = HandTracker()
@@ -30,7 +183,7 @@ class GameManager:
         self.state       = 'MENU'
         self.game_idx    = 0
         self.game        = None
-        self.hand_states = []   # List[HandState]
+        self.hand_states = []
 
         self._countdown_start  = 0.0
         self._result_start     = 0.0
@@ -38,6 +191,7 @@ class GameManager:
         self._last_success     = False
         self._last_game_score  = 0
         self._player_name      = ''
+        self._tutorial_idx     = 0
 
     # ──────────────────────────────────────────────────────────── public ──────
 
@@ -47,6 +201,7 @@ class GameManager:
 
         output = {
             'MENU':       self._menu,
+            'TUTORIAL':   self._tutorial,
             'COUNTDOWN':  self._countdown,
             'PLAYING':    self._playing,
             'RESULT':     self._result,
@@ -55,13 +210,29 @@ class GameManager:
             'RANKING':    self._ranking,
         }.get(self.state, lambda f: f)(frame)
 
-        # Draw white hand avatar(s) on top of everything
         draw_avatars(output, self.hand_states)
         return output
 
     def handle_key(self, key):
         if self.state == 'MENU' and key == ord(' '):
+            self._tutorial_idx = 0
+            self.state = 'TUTORIAL'
+
+        elif self.state == 'MENU' and key == 13:   # Enter = skip tutorial
             self._begin_countdown()
+
+        elif self.state == 'TUTORIAL':
+            if key == ord(' '):
+                self._tutorial_idx += 1
+                if self._tutorial_idx >= len(_TUT_PAGES):
+                    self._tutorial_idx = 0
+                    self._begin_countdown()
+            elif key == 13:              # Enter = skip to game
+                self._tutorial_idx = 0
+                self._begin_countdown()
+            elif key == 27:             # ESC = back to menu
+                self._tutorial_idx = 0
+                self.state = 'MENU'
 
         elif self.state == 'NAME_INPUT':
             if key == 13 and self._player_name:
@@ -113,18 +284,61 @@ class GameManager:
         draw_text_centered(frame, 'Webcam + Hand Simulator',
                            h // 5 + 65, scale=0.9, color=COLOR_WHITE)
 
-        lines = [
-            'Make a FIST to grip tools',
-            'Step 1 — Grab the knife and chop UP-DOWN',
-            'Step 2 — Grab the spatula and stir in CIRCLES',
-            'Step 3 — Grab the pan and flick UP quickly',
-        ]
-        for i, line in enumerate(lines):
-            draw_text_centered(frame, line, h // 2 + i * 46, scale=0.75, color=COLOR_GREY)
-
         if int(time.time() * 2) % 2 == 0:
-            draw_text_centered(frame, 'Press  SPACE  to start!',
-                               h * 4 // 5, scale=1.2, color=COLOR_SUCCESS, thickness=2)
+            draw_text_centered(frame, 'Press  SPACE  to learn how to play',
+                               h * 4 // 5, scale=1.1, color=COLOR_SUCCESS, thickness=2)
+        draw_text_centered(frame, 'Press  ENTER  to skip tutorial and start',
+                           h * 4 // 5 + 50, scale=0.75, color=COLOR_GREY)
+        return frame
+
+    def _tutorial(self, frame):
+        h, w = frame.shape[:2]
+        dim(frame, 0.52)
+
+        title, body, draw_fn = _TUT_PAGES[self._tutorial_idx]
+        total = len(_TUT_PAGES)
+        last  = self._tutorial_idx == total - 1
+
+        # ── Page indicator dots ───────────────────────────────────────────────
+        dot_cx = w // 2 - (total * 22) // 2
+        for i in range(total):
+            filled = (i == self._tutorial_idx)
+            color  = COLOR_PRIMARY if filled else COLOR_GREY
+            cv2.circle(frame, (dot_cx + i * 22, 40), 6, color, -1 if filled else 2)
+
+        # ── Title ─────────────────────────────────────────────────────────────
+        draw_text_centered(frame, title,
+                           h // 6 + 10, scale=1.5, color=COLOR_PRIMARY, thickness=3)
+
+        # ── Illustration ──────────────────────────────────────────────────────
+        if draw_fn:
+            draw_fn(frame, w // 2, h // 2 - 10)
+        else:
+            # Page 1: hint arrow toward where the hand avatar will appear
+            if self._tutorial_idx == 0:
+                draw_text_centered(frame, '(your hand appears here)',
+                                   h // 2 + 10, scale=0.85, color=(160, 160, 190))
+                for ox in [-12, 0, 12]:
+                    cv2.arrowedLine(frame,
+                                    (w // 2 + ox, h // 2 + 55),
+                                    (w // 2 + ox, h // 2 + 100),
+                                    (160, 160, 190), 2, tipLength=0.4)
+
+        # ── Body text ─────────────────────────────────────────────────────────
+        text_y = h * 3 // 4
+        for i, line in enumerate(body):
+            draw_text_centered(frame, line, text_y + i * 44,
+                               scale=0.85, color=COLOR_WHITE)
+
+        # ── Navigation hint ───────────────────────────────────────────────────
+        hint = 'SPACE: Start Cooking!' if last else 'SPACE: Next  →'
+        if int(time.time() * 2) % 2 == 0:
+            draw_text_centered(frame, hint, h - 55,
+                               scale=1.0, color=COLOR_SUCCESS, thickness=2)
+        if not last:
+            draw_text_centered(frame, 'ENTER: skip tutorial   ESC: back to menu',
+                               h - 22, scale=0.6, color=COLOR_GREY)
+
         return frame
 
     def _countdown(self, frame):
@@ -257,7 +471,6 @@ class GameManager:
         draw_text(frame, self.game.name, (18, 50), scale=1.1,
                   color=COLOR_PRIMARY, thickness=2)
 
-        # Timer — show 'GRAB!' before timer starts
         if not self.game.timer_started:
             t_str = 'GRAB the knife!'
             t_col = (0, 200, 255)
@@ -268,18 +481,15 @@ class GameManager:
         sz = cv2.getTextSize(t_str, FONT, 1.0, 2)[0]
         draw_text(frame, t_str, (w - sz[0] - 18, 50), scale=1.0, color=t_col, thickness=2)
 
-        # Score
         s_str = f'Score: {self.score.total_score}'
         ssz   = cv2.getTextSize(s_str, FONT, 0.85, 2)[0]
         draw_text(frame, s_str, ((w - ssz[0]) // 2, 50), scale=0.85, color=COLOR_WHITE)
 
-        # Progress bar (time)
         draw_progress_bar(frame, 15, h - 28, w - 30, 14, self.game.time_ratio,
                           color=COLOR_DANGER if (self.game.timer_started and
                                                   self.game.time_remaining < 15)
                                             else COLOR_SUCCESS)
 
-        # Step text
         pt = self.game.progress_text
         if pt:
             draw_text(frame, pt, (18, 110), scale=0.85, color=COLOR_WHITE)

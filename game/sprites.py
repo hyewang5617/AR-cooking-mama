@@ -11,7 +11,7 @@ _cache = {}
 def get_knife(size=130):
     key = ('knife', size)
     if key not in _cache:
-        _cache[key] = _load_knife(size)
+        _cache[key] = _make_knife(size)
     return _cache[key]
 
 
@@ -38,32 +38,51 @@ def get_bowl(w=260, h=140):
 
 # ── Sprite loading ────────────────────────────────────────────────────────────
 
-def _load_knife(size):
-    path = os.path.join(_ASSET_DIR, 'knives and baseAlbedo.png')
-    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        return _placeholder(size, (80, 80, 180, 255))
+def _make_knife(size):
+    """Chef's knife drawn programmatically, blade pointing straight up."""
+    img = np.zeros((size, size, 4), dtype=np.uint8)
+    cx  = size // 2
 
-    h, w = img.shape[:2]
-    knife = img[:int(h * 0.47), :int(w * 0.47)].copy()
-    if knife.shape[2] == 3:
-        knife = cv2.cvtColor(knife, cv2.COLOR_BGR2BGRA)
+    tip_y    = int(size * 0.03)
+    root_y   = int(size * 0.60)
+    guard_y2 = int(size * 0.68)
+    hndl_y2  = int(size * 0.96)
+    bl       = cx - int(size * 0.07)   # blade left x
+    br       = cx + int(size * 0.11)   # blade right x (spine side)
+    hx1      = cx - int(size * 0.09)
+    hx2      = cx + int(size * 0.09)
 
-    # Remove tan/wood background
-    hsv = cv2.cvtColor(knife[:, :, :3], cv2.COLOR_BGR2HSV)
-    bg  = cv2.inRange(hsv, (10, 10, 140), (45, 110, 255))
-    kernel = np.ones((5, 5), np.uint8)
-    bg = cv2.morphologyEx(bg, cv2.MORPH_CLOSE, kernel)
-    bg = cv2.dilate(bg, kernel)
-    knife[:, :, 3] = cv2.bitwise_not(bg)
+    # ── blade (steel silver) ──────────────────────────────────────────────────
+    blade = np.array([[cx, tip_y], [bl, root_y], [br, root_y]])
+    cv2.fillPoly(img, [blade], (200, 208, 220, 255))
+    # left shiny edge
+    cv2.line(img, (cx, tip_y + 2), (bl, root_y), (240, 248, 255, 210), 2)
+    # right spine (slightly darker)
+    spine = np.array([[cx, tip_y + 3], [br, root_y],
+                      [br - 3, root_y], [cx - 2, tip_y + 6]])
+    cv2.fillPoly(img, [spine], (158, 165, 178, 255))
 
-    # Rotate so blade points straight up (-45° from original diagonal)
-    kh, kw = knife.shape[:2]
-    M = cv2.getRotationMatrix2D((kw / 2, kh / 2), -45, 1.0)
-    knife = cv2.warpAffine(knife, M, (kw, kh), flags=cv2.INTER_LINEAR,
-                           borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+    # ── guard / bolster ───────────────────────────────────────────────────────
+    cv2.rectangle(img, (bl - 3, root_y), (br + 3, guard_y2), (125, 132, 145, 255), -1)
+    cv2.rectangle(img, (bl - 3, root_y), (br + 3, guard_y2), (85, 90, 100, 255), 2)
 
-    return cv2.resize(knife, (size, size))
+    # ── handle (dark wood) ────────────────────────────────────────────────────
+    cv2.rectangle(img, (hx1, guard_y2), (hx2, hndl_y2), (48, 78, 112, 255), -1)
+    mid_x = (hx1 + hx2) // 2
+    # three rivets
+    for ry in [guard_y2 + int(size * 0.06),
+               guard_y2 + int(size * 0.14),
+               guard_y2 + int(size * 0.22)]:
+        r = max(2, int(size * 0.028))
+        cv2.circle(img, (mid_x, ry), r, (82, 112, 148, 255), -1)
+        cv2.circle(img, (mid_x, ry), r, (38, 58, 88,  255), 1)
+    # wood grain lines
+    for i in range(5):
+        ly = guard_y2 + int(size * (0.04 + i * 0.06))
+        cv2.line(img, (hx1 + 2, ly), (hx2 - 2, ly), (36, 60, 88, 130), 1)
+    cv2.rectangle(img, (hx1, guard_y2), (hx2, hndl_y2), (28, 48, 78, 255), 2)
+
+    return img
 
 
 def _load_tomato(size):
